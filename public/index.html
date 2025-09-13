@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Private Room Drawing App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Homepage -->
+    <div id="homepage" class="page active">
+        <div class="container">
+            <div class="welcome-card">
+                <h1 class="app-title">🎨 Collaborative Canvas</h1>
+                <p class="app-subtitle">Create or join a private room to draw together</p>
+                
+                <div class="form-section">
+                    <div class="input-group">
+                        <label for="username">Your Name</label>
+                        <input type="text" id="username" placeholder="Enter your name" maxlength="20" required>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button id="create-room-btn" class="btn btn-primary">
+                            <span class="btn-icon">+</span>
+                            Create Room
+                        </button>
+                        
+                        <div class="divider">
+                            <span>or</span>
+                        </div>
+                        
+                        <div class="join-section">
+                            <div class="input-group">
+                                <label for="room-id">Room ID</label>
+                                <input type="text" id="room-id" placeholder="Enter room ID" maxlength="6">
+                            </div>
+                            <button id="join-room-btn" class="btn btn-secondary">
+                                <span class="btn-icon">→</span>
+                                Join Room
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="error-message" class="error-message hidden"></div>
+                <div id="success-message" class="success-message hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paint Interface -->
+    <div id="paint-interface" class="page">
+        <div class="paint-container">
+            <!-- Title Bar -->
+            <div class="title-bar">
+                <div class="title-info">
+                    <span id="room-title">Room: XXXXXX - Paint</span>
+                </div>
+                <div class="window-controls">
+                    <button id="leave-room-btn" class="leave-btn">Leave Room</button>
+                </div>
+            </div>
+            
+            <!-- Menu Bar -->
+            <div class="menu-bar">
+                <div class="menu-items">
+                    <span class="menu-item">File</span>
+                    <span class="menu-item">Edit</span>
+                    <span class="menu-item">View</span>
+                </div>
+            </div>
+            
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <div class="tool-section">
+                    <div class="section-title">Tools</div>
+                    <div class="tool-grid">
+                        <button class="tool-btn active" data-tool="pencil" title="Pencil">✏️</button>
+                        <button class="tool-btn" data-tool="brush" title="Brush">🖌️</button>
+                        <button class="tool-btn" data-tool="eraser" title="Eraser">🧽</button>
+                        <button class="tool-btn" data-tool="fill" title="Fill">🪣</button>
+                        <button class="tool-btn" data-tool="text" title="Text">T</button>
+                        <button class="tool-btn" data-tool="eyedropper" title="Color Picker">💧</button>
+                    </div>
+                </div>
+                
+                <div class="tool-section">
+                    <div class="section-title">Shapes</div>
+                    <div class="tool-grid">
+                        <button class="tool-btn" data-tool="rectangle" title="Rectangle">⬜</button>
+                        <button class="tool-btn" data-tool="circle" title="Circle">⭕</button>
+                        <button class="tool-btn" data-tool="line" title="Line">📏</button>
+                        <button class="tool-btn" data-tool="arrow" title="Arrow">➡️</button>
+                        <button class="tool-btn" data-tool="star" title="Star">⭐</button>
+                    </div>
+                </div>
+                
+                <div class="tool-section">
+                    <div class="section-title">Colors</div>
+                    <div class="color-palette">
+                        <div class="color-swatch active" data-color="#000000" style="background: #000000"></div>
+                        <div class="color-swatch" data-color="#FF0000" style="background: #FF0000"></div>
+                        <div class="color-swatch" data-color="#00FF00" style="background: #00FF00"></div>
+                        <div class="color-swatch" data-color="#0000FF" style="background: #0000FF"></div>
+                        <div class="color-swatch" data-color="#FFFF00" style="background: #FFFF00"></div>
+                        <div class="color-swatch" data-color="#FF00FF" style="background: #FF00FF"></div>
+                        <div class="color-swatch" data-color="#00FFFF" style="background: #00FFFF"></div>
+                        <div class="color-swatch" data-color="#FFFFFF" style="background: #FFFFFF; border: 1px solid #ccc"></div>
+                    </div>
+                    <input type="color" id="color-picker" value="#000000">
+                </div>
+                
+                <div class="tool-section">
+                    <div class="section-title">Brush Size</div>
+                    <input type="range" id="brush-size" min="1" max="50" value="3" class="brush-slider">
+                    <span id="brush-size-display">3px</span>
+                </div>
+                
+                <div class="tool-section">
+                    <button id="clear-canvas-btn" class="btn btn-danger">Clear Canvas</button>
+                </div>
+            </div>
+            
+            <!-- Canvas Area -->
+            <div class="canvas-area">
+                <canvas id="drawing-canvas" width="1152" height="648"></canvas>
+            </div>
+            
+            <!-- Status Bar -->
+            <div class="status-bar">
+                <div class="status-left">
+                    <span>Canvas: 1152 × 648</span>
+                    <span>Zoom: 100%</span>
+                </div>
+                <div class="status-right">
+                    <span id="user-list">Users: </span>
+                    <div id="connection-status" class="connection-indicator">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Connecting...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

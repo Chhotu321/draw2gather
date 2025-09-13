@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: multiplayer-drawing-app
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /
+    docker:
+      dockerfile: Dockerfile
+      dockerContext: .
+      dockerBuildArgs:
+        - NODE_ENV=production
