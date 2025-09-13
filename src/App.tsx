@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 
+// Use environment variable or fallback to localhost for development
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 interface Point {
   x: number;
   y: number;
@@ -24,6 +27,7 @@ function App() {
   const [brushSize, setBrushSize] = useState(BRUSH_SIZES[1]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [error, setError] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [username, setUsername] = useState('');
@@ -33,14 +37,37 @@ function App() {
 
   // Initialize socket connection
   useEffect(() => {
-    const newSocket = io('http://localhost:3000');
-    setSocket(newSocket);
+    const socketInstance = io(API_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      path: '/socket.io/',
+      query: {}
+    });
 
-    newSocket.on('draw', (data: Point) => {
+    // Connection established
+    socketInstance.on('connect', () => {
+      console.log('Connected to server');
+      setIsConnected(true);
+      setError('');
+    });
+
+    // Connection error
+    socketInstance.on('connect_error', (err) => {
+      console.error('Connection error:', err);
+      setError('Failed to connect to the server. Please try again.');
+      setIsConnected(false);
+    });
+
+    // Handle drawing events
+    socketInstance.on('draw', (data: Point) => {
       drawOnCanvas(data, false);
     });
 
-    newSocket.on('clear-canvas', () => {
+    // Handle canvas clear
+    socketInstance.on('clear-canvas', () => {
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext('2d');
       if (ctx && canvas) {
@@ -48,45 +75,63 @@ function App() {
       }
     });
 
-    newSocket.on('user-joined', (data) => {
+    // Handle user joined room
+    socketInstance.on('user-joined', (data: { users: Array<{id: string, username: string}>, message: string }) => {
       setUsers(data.users);
+      console.log(data.message);
     });
 
-    newSocket.on('user-left', (data) => {
+    // Handle user left room
+    socketInstance.on('user-left', (data: { userId: string, username: string, users: Array<{id: string, username: string}>, message: string }) => {
       setUsers(data.users);
+      console.log(data.message);
     });
 
-    newSocket.on('join-error', (error) => {
-      setError(error);
+    // Handle join errors
+    socketInstance.on('join-error', (message: string) => {
+      setError(message);
       setIsJoining(false);
     });
 
-    newSocket.on('load-drawing', (drawingData: Point[]) => {
+    // Load existing drawing data
+    socketInstance.on('load-drawing', (drawingData: Point[]) => {
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext('2d');
       if (ctx && canvas) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawingData.forEach(point => drawOnCanvas(point, false));
+        drawingData.forEach(point => drawPoint(ctx, point));
       }
     });
 
+    setSocket(socketInstance);
+
+    // Clean up on unmount
     return () => {
-      newSocket.disconnect();
+      if (socketInstance) {
+        socketInstance.disconnect();
+      }
     };
   }, []);
 
-  const drawOnCanvas = (point: Point, emit = true) => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!ctx || !canvas) return;
-
+  // Draw a point on the canvas
+  const drawPoint = (ctx: CanvasRenderingContext2D, point: Point) => {
     ctx.beginPath();
     ctx.arc(point.x, point.y, point.size / 2, 0, Math.PI * 2);
     ctx.fillStyle = point.color;
     ctx.fill();
+  };
 
-    if (emit && socket && room) {
-      socket.emit('draw', point);
+  // Handle drawing on canvas
+  const drawOnCanvas = (data: Point, isLocal: boolean) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (ctx && canvas) {
+      drawPoint(ctx, data);
+      
+      // Only emit if it's the local user drawing
+      if (isLocal && socket && room) {
+        socket.emit('draw', data);
+      }
     }
   };
 
@@ -98,7 +143,7 @@ function App() {
     const y = e.clientY - rect.top;
     
     setIsDrawing(true);
-    drawOnCanvas({ x, y, color, size: brushSize });
+    drawOnCanvas({ x, y, color, size: brushSize }, true);
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -108,7 +153,7 @@ function App() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
-    drawOnCanvas({ x, y, color, size: brushSize });
+    drawOnCanvas({ x, y, color, size: brushSize }, true);
   };
 
   const stopDrawing = () => {

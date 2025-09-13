@@ -1,15 +1,53 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
+
+// CORS configuration
+const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://exquisite-pudding-cf4f73.netlify.app'
+];
+
+// Configure CORS for Express
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 const server = http.createServer(app);
+
+// Configure Socket.IO with CORS
 const io = socketIo(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  path: process.env.SOCKET_PATH || '/socket.io/'
 });
 
 // Serve static files from public directory
@@ -104,11 +142,14 @@ io.on('connection', (socket) => {
   socket.on('clear-canvas', () => {
     if (!socket.roomId) return;
     
+    // Clear stored drawing data for the room
     drawingData.set(socket.roomId, []);
+    
+    // Broadcast to all clients in the room
     io.to(socket.roomId).emit('clear-canvas');
   });
   
-  // Handle disconnect
+  // Handle disconnection
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
     
@@ -118,16 +159,18 @@ io.on('connection', (socket) => {
         // Remove user from room
         room.users = room.users.filter(user => user.id !== socket.id);
         
+        // If room is empty, clean up
         if (room.users.length === 0) {
-          // Delete empty room
           rooms.delete(socket.roomId);
           drawingData.delete(socket.roomId);
           console.log(`Room ${socket.roomId} deleted (empty)`);
         } else {
-          // Notify remaining users
+          // Notify remaining users that someone left
           io.to(socket.roomId).emit('user-left', {
+            userId: socket.id,
+            username: socket.username,
             users: room.users,
-            message: `${socket.username} left the room`
+            message: `${socket.username || 'A user'} left the room`
           });
         }
       }
@@ -135,21 +178,25 @@ io.on('connection', (socket) => {
   });
 });
 
-// Clean up inactive rooms (older than 1 hour)
-setInterval(() => {
-  const now = Date.now();
-  const oneHour = 60 * 60 * 1000;
-  
-  for (const [roomId, room] of rooms.entries()) {
-    if (now - room.createdAt > oneHour && room.users.length === 0) {
-      rooms.delete(roomId);
-      drawingData.delete(roomId);
-      console.log(`Cleaned up inactive room: ${roomId}`);
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    cors: {
+      allowedOrigins: allowedOrigins
     }
-  }
-}, 30 * 60 * 1000); // Check every 30 minutes
+  });
+});
 
-const PORT = process.env.PORT || 3000;
+// Start the server
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
+  console.log(`Socket.IO path: ${process.env.SOCKET_PATH || '/socket.io/'}`);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err);
 });
